@@ -4,7 +4,7 @@ import { createContext, useContext, useRef, ReactNode } from "react"
 
 type AudioContextType = {
   // getAudioContext: () => AudioContext
-  playNote: (note: number) => void
+  playNote: (note: number, oscillatorType: OscillatorType) => void
   stopNote: (note: number) => void
 }
 
@@ -31,7 +31,7 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     return audioContextRef.current
   }
 
-  function playNote(note: number): void {
+  function playNote(note: number, oscillatorType: OscillatorType): void {
     if (voicesRef.current.has(note)) {
       return // Return early, note already playing somehow
     }
@@ -50,18 +50,18 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
 
     // Create oscillators and give them the note data
     const osc1 = audioContext.createOscillator()
-    osc1.type = "sawtooth"
+    osc1.type = oscillatorType
     osc1.frequency.value = noteFrequency
     osc1.connect(gain)
 
     const osc2 = audioContext.createOscillator()
-    osc2.type = "sawtooth"
+    osc2.type = oscillatorType
     osc2.frequency.value = noteFrequency
     osc2.detune.value = 5
     osc2.connect(gain)
 
     const osc3 = audioContext.createOscillator()
-    osc2.type = "sawtooth"
+    osc2.type = oscillatorType
     osc2.frequency.value = noteFrequency
     osc2.detune.value = 5
     osc2.connect(gain)
