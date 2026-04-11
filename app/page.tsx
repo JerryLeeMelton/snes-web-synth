@@ -19,7 +19,13 @@ const OSCILLATOR_TYPES = ["sine", "square", "sawtooth", "triangle"]
 export default function Home() {
   const { playNote, stopNote } = useAudio()
 
-  const [selectedOscType, setSelectedOscType] = useState<OscillatorType>("sine")
+  const [oscillatorTypes, setOscillatorTypes] = useState<OscillatorType[]>([
+    "sine",
+    "sine",
+    "sine",
+    "sine",
+  ])
+
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <div className="keyboard-container">
@@ -27,7 +33,7 @@ export default function Home() {
           <button
             key={note}
             onMouseDown={() => {
-              playNote(note, selectedOscType)
+              playNote(note, oscillatorTypes)
             }}
             onMouseUp={() => {
               stopNote(note)
@@ -42,16 +48,22 @@ export default function Home() {
         ))}
       </div>
       <div className={"synth-controls"}>
-        <select
-          value={selectedOscType}
-          onChange={(e) => {
-            setSelectedOscType(e.target.value as OscillatorType)
-          }}
-        >
-          {OSCILLATOR_TYPES.map((oscType) => (
-            <option key={oscType}>{oscType}</option>
-          ))}
-        </select>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="oscillator-control-container">
+            <select
+              value={oscillatorTypes[i]}
+              onChange={(e) => {
+                const next = [...oscillatorTypes]
+                next[i] = e.target.value as OscillatorType
+                setOscillatorTypes(next)
+              }}
+            >
+              {OSCILLATOR_TYPES.map((oscType) => (
+                <option key={oscType}>{oscType}</option>
+              ))}
+            </select>
+          </div>
+        ))}
       </div>
     </div>
   )

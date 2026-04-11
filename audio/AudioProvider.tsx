@@ -4,7 +4,7 @@ import { createContext, useContext, useRef, ReactNode } from "react"
 
 type AudioContextType = {
   // getAudioContext: () => AudioContext
-  playNote: (note: number, oscillatorType: OscillatorType) => void
+  playNote: (note: number, oscillatorTypes: OscillatorType[]) => void
   stopNote: (note: number) => void
 }
 
@@ -31,7 +31,7 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     return audioContextRef.current
   }
 
-  function playNote(note: number, oscillatorType: OscillatorType): void {
+  function playNote(note: number, oscillatorTypes: OscillatorType[]): void {
     if (voicesRef.current.has(note)) {
       return // Return early, note already playing somehow
     }
@@ -49,30 +49,21 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     gain.connect(audioContext.destination)
 
     // Create oscillators and give them the note data
-    const osc1 = audioContext.createOscillator()
-    osc1.type = oscillatorType
-    osc1.frequency.value = noteFrequency
-    osc1.connect(gain)
-
-    const osc2 = audioContext.createOscillator()
-    osc2.type = oscillatorType
-    osc2.frequency.value = noteFrequency
-    osc2.detune.value = 5
-    osc2.connect(gain)
-
-    const osc3 = audioContext.createOscillator()
-    osc3.type = oscillatorType
-    osc3.frequency.value = noteFrequency
-    osc3.detune.value = 5
-    osc3.connect(gain)
+    const oscillators = oscillatorTypes.map((type) => {
+      const osc = audioContext.createOscillator()
+      osc.type = type
+      osc.frequency.value = noteFrequency
+      osc.connect(gain)
+      return osc
+    })
 
     // Play the note!
-    osc1.start()
-    osc2.start()
-    osc3.start()
+    oscillators.forEach((osc) => {
+      osc.start()
+    })
 
     // Add note to the voiceRef for tracking and later stopping
-    voicesRef.current.set(note, { oscillators: [osc1, osc2, osc3], gain })
+    voicesRef.current.set(note, { oscillators: oscillators, gain })
   }
 
   function stopNote(note: number): void {
