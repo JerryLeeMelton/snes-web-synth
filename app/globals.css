@@ -24,3 +24,10 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+button {
+  font-weight: bold;
+  background-color: violet;
+  padding: 1rem;
+  border-radius: 1rem;
+}
