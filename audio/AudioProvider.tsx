@@ -61,10 +61,10 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     osc2.connect(gain)
 
     const osc3 = audioContext.createOscillator()
-    osc2.type = oscillatorType
-    osc2.frequency.value = noteFrequency
-    osc2.detune.value = 5
-    osc2.connect(gain)
+    osc3.type = oscillatorType
+    osc3.frequency.value = noteFrequency
+    osc3.detune.value = 5
+    osc3.connect(gain)
 
     // Play the note!
     osc1.start()
