@@ -49,19 +49,23 @@ export default function Home() {
       </div>
       <div className={"synth-controls"}>
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="oscillator-control-container">
-            <select
-              value={oscillatorTypes[i]}
-              onChange={(e) => {
-                const next = [...oscillatorTypes]
-                next[i] = e.target.value as OscillatorType
-                setOscillatorTypes(next)
-              }}
-            >
-              {OSCILLATOR_TYPES.map((oscType) => (
-                <option key={oscType}>{oscType}</option>
-              ))}
-            </select>
+          <div key={i} className="oscillator-controls-container">
+            <div>Oscillator{" " + (i + 1)}</div>
+            <div>
+              {/* Oscillator Waveform Selector */}
+              <select
+                value={oscillatorTypes[i]}
+                onChange={(e) => {
+                  const next = [...oscillatorTypes]
+                  next[i] = e.target.value as OscillatorType
+                  setOscillatorTypes(next)
+                }}
+              >
+                {OSCILLATOR_TYPES.map((oscType) => (
+                  <option key={oscType}>{oscType}</option>
+                ))}
+              </select>
+            </div>
           </div>
         ))}
       </div>

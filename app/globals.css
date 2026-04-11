@@ -24,3 +24,14 @@ body {
   padding: 1rem;
   border-radius: 1rem;
 }
+
+.oscillator-controls-container {
+  display: flex;
+  margin: 1rem;
+  flex-direction: column;
+  padding: 1rem;
+  border: 1px solid white;
+}
+.oscillator-controls-container select {
+  border: 1px solid white;
+}
