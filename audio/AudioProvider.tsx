@@ -85,11 +85,14 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     audioContext.resume()
 
     // Set the note's frequency and gain
+    const { attack, decay, sustain } = volEnvelopeRef.current
+    const now = audioContext.currentTime
     const noteFrequency = midiToFreqency(note)
     const gain = audioContext.createGain()
-    gain.gain.setValueAtTime(0, audioContext.currentTime)
-    // Short default ramp to avoid pops
-    gain.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.02)
+    gain.gain.setValueAtTime(0, now)
+    // Apply attack from volume envelope
+    gain.gain.linearRampToValueAtTime(0.3, now + attack)
+    gain.gain.linearRampToValueAtTime(sustain, now + attack + decay)
     gain.connect(audioContext.destination)
 
     // Create oscillators and give them the note data
@@ -119,7 +122,7 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
 
     const audioContext = getAudioContext()
     const now = audioContext.currentTime
-    const releaseTime = 0.05
+    const releaseTime = volEnvelopeRef.current.release
 
     // Short default release value to avoid pops
     voice.gain.gain.setValueAtTime(voice.gain.gain.value, now)
@@ -129,7 +132,7 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     setTimeout(() => {
       voice.oscillators.forEach((oscillator) => oscillator.stop())
       voice.gain.disconnect()
-    })
+    }, releaseTime + 100)
 
     voicesRef.current.delete(note)
   }
