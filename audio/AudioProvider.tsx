@@ -83,6 +83,7 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     // Get an initialize audio context
     const audioContext = getAudioContext()
     audioContext.resume()
+    const noteVolume = 0.01
 
     // Set the note's frequency and gain
     const { attack, decay, sustain } = volEnvelopeRef.current
@@ -91,7 +92,7 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     const gain = audioContext.createGain()
     gain.gain.setValueAtTime(0, now)
     // Apply attack from volume envelope
-    gain.gain.linearRampToValueAtTime(0.3, now + attack)
+    gain.gain.linearRampToValueAtTime(noteVolume, now + attack)
     gain.gain.linearRampToValueAtTime(sustain, now + attack + decay)
     gain.connect(audioContext.destination)
 
@@ -124,17 +125,24 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     const now = audioContext.currentTime
     const releaseTime = volEnvelopeRef.current.release
 
-    // Short default release value to avoid pops
+    // Cancel any in-progress attack/decay automation and snapshot the current
+    // gain value so the release ramp starts from the right level
+    voice.gain.gain.cancelScheduledValues(now)
     voice.gain.gain.setValueAtTime(voice.gain.gain.value, now)
     voice.gain.gain.linearRampToValueAtTime(0, now + releaseTime)
 
-    // Stop oscillators after release finishes
-    setTimeout(() => {
-      voice.oscillators.forEach((oscillator) => oscillator.stop())
-      voice.gain.disconnect()
-    }, releaseTime + 100)
-
-    voicesRef.current.delete(note)
+    // Stop oscillators after release finishes.
+    // releaseTime is in seconds, so convert to ms for setTimeout.
+    // Keep the note in the map until cleanup so a quick re-click during
+    // release doesn't start a second voice on top of the releasing one.
+    setTimeout(
+      () => {
+        voice.oscillators.forEach((oscillator) => oscillator.stop())
+        voice.gain.disconnect()
+        voicesRef.current.delete(note)
+      },
+      releaseTime * 1000 + 100,
+    )
   }
 
   return (
