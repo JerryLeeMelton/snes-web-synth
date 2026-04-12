@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useAudio } from "@/audio/AudioProvider"
+import ADSRSliders from "@/components/controls/ADSRSliders"
 
 const KEYBOARD_KEYS = [
   { note: 60, label: "C" },
@@ -17,7 +18,13 @@ const KEYBOARD_KEYS = [
 const OSCILLATOR_TYPES = ["sine", "square", "sawtooth", "triangle"]
 
 export default function Home() {
-  const { playNote, stopNote } = useAudio()
+  const {
+    playNote,
+    stopNote,
+    setVolEnvelope,
+    volEnvelopeRangeValues,
+    volEnvelopeRef,
+  } = useAudio()
 
   const [oscillatorTypes, setOscillatorTypes] = useState<OscillatorType[]>([
     "sine",
@@ -48,6 +55,12 @@ export default function Home() {
         ))}
       </div>
       <div className={"synth-controls"}>
+        <div className="volume-envelope-container">
+          <ADSRSliders
+            setEnvelope={setVolEnvelope}
+            adsrRangeValues={volEnvelopeRangeValues}
+          />
+        </div>
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="oscillator-controls-container">
             <div>Oscillator{" " + (i + 1)}</div>

@@ -1,16 +1,43 @@
 "use client"
 
-import { createContext, useContext, useRef, ReactNode } from "react"
+import { createContext, useContext, useRef, ReactNode, useEffect } from "react"
 
 type AudioContextType = {
   // getAudioContext: () => AudioContext
   playNote: (note: number, oscillatorTypes: OscillatorType[]) => void
   stopNote: (note: number) => void
+  setVolEnvelope: (envelopeData: {
+    attack: number
+    decay: number
+    sustain: number
+    release: number
+  }) => void
+  volEnvelopeRangeValues: {
+    attack: { min: number; max: number; default: number }
+    decay: { min: number; max: number; default: number }
+    sustain: { min: number; max: number; default: number }
+    release: { min: number; max: number; default: number }
+  }
+  volEnvelopeRef: React.RefObject<Envelope>
 }
 
-type Voice = {
+export type Voice = {
   oscillators: OscillatorNode[]
   gain: GainNode
+}
+
+export type Envelope = {
+  attack: number
+  decay: number
+  sustain: number
+  release: number
+}
+
+const volEnvelopeRangeValues = {
+  attack: { min: 0.001, max: 2.0, default: 0.02 },
+  decay: { min: 0.001, max: 2.0, default: 0.1 },
+  sustain: { min: 0, max: 1.0, default: 0.7 },
+  release: { min: 0.001, max: 3.0, default: 0.05 },
 }
 
 const AudioCtx = createContext<AudioContextType | null>(null)
@@ -22,6 +49,19 @@ function midiToFreqency(note: number) {
 export default function AudioProvider({ children }: { children: ReactNode }) {
   const audioContextRef = useRef<AudioContext | null>(null)
   const voicesRef = useRef<Map<number, Voice>>(new Map())
+  const volEnvelopeRef = useRef<Envelope>({
+    attack: volEnvelopeRangeValues.attack.default,
+    decay: volEnvelopeRangeValues.decay.default,
+    sustain: volEnvelopeRangeValues.sustain.default,
+    release: volEnvelopeRangeValues.release.default,
+  })
+
+  useEffect(() => {
+    console.log(
+      "volumeEnvelopeRef.current updated.  == ",
+      volEnvelopeRef.current,
+    )
+  }, [volEnvelopeRef.current])
 
   function getAudioContext() {
     if (!audioContextRef.current) {
@@ -29,6 +69,10 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     }
 
     return audioContextRef.current
+  }
+
+  function setVolEnvelope(envelopeData: Envelope) {
+    volEnvelopeRef.current = envelopeData
   }
 
   function playNote(note: number, oscillatorTypes: OscillatorType[]): void {
@@ -91,7 +135,15 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AudioCtx.Provider value={{ playNote, stopNote }}>
+    <AudioCtx.Provider
+      value={{
+        playNote,
+        stopNote,
+        volEnvelopeRef,
+        setVolEnvelope,
+        volEnvelopeRangeValues,
+      }}
+    >
       {children}
     </AudioCtx.Provider>
   )
