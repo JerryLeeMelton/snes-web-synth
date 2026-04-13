@@ -48,6 +48,7 @@ function midiToFreqency(note: number) {
 
 export default function AudioProvider({ children }: { children: ReactNode }) {
   const audioContextRef = useRef<AudioContext | null>(null)
+  const masterGainRef = useRef<GainNode | null>(null)
   const voicesRef = useRef<Map<number, Voice>>(new Map())
   const volEnvelopeRef = useRef<Envelope>({
     attack: volEnvelopeRangeValues.attack.default,
@@ -66,6 +67,9 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
   function getAudioContext() {
     if (!audioContextRef.current) {
       audioContextRef.current = new AudioContext()
+      masterGainRef.current = audioContextRef.current.createGain()
+      masterGainRef.current.gain.value = 0.4
+      masterGainRef.current.connect(audioContextRef.current.destination)
     }
 
     return audioContextRef.current
@@ -83,18 +87,20 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     // Get an initialize audio context
     const audioContext = getAudioContext()
     audioContext.resume()
-    const noteVolume = 0.01
 
     // Set the note's frequency and gain
     const { attack, decay, sustain } = volEnvelopeRef.current
     const now = audioContext.currentTime
     const noteFrequency = midiToFreqency(note)
+    // Normalize peak gain by oscillator count to prevent clipping
+    const peakGain = 1 / oscillatorTypes.length
+    const sustainGain = sustain * peakGain
     const gain = audioContext.createGain()
     gain.gain.setValueAtTime(0, now)
-    // Apply attack from volume envelope
-    gain.gain.linearRampToValueAtTime(noteVolume, now + attack)
-    gain.gain.linearRampToValueAtTime(sustain, now + attack + decay)
-    gain.connect(audioContext.destination)
+    // Attack ramps up to peak, decay ramps down to sustain level
+    gain.gain.linearRampToValueAtTime(peakGain, now + attack)
+    gain.gain.linearRampToValueAtTime(sustainGain, now + attack + decay)
+    gain.connect(masterGainRef.current!)
 
     // Create oscillators and give them the note data
     const oscillators = oscillatorTypes.map((type) => {
