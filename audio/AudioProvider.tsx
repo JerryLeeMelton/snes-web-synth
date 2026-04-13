@@ -24,6 +24,7 @@ type AudioContextType = {
 export type Voice = {
   oscillators: OscillatorNode[]
   gain: GainNode
+  releaseTimeout?: ReturnType<typeof setTimeout>
 }
 
 export type Envelope = {
@@ -81,7 +82,20 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
 
   function playNote(note: number, oscillatorTypes: OscillatorType[]): void {
     if (voicesRef.current.has(note)) {
-      return // Return early, note already playing somehow
+      // A voice exists (possibly still in its release phase). Kill it immediately
+      // so the new click always starts a fresh note.
+      const existing = voicesRef.current.get(note)!
+      clearTimeout(existing.releaseTimeout)
+      const ctx = audioContextRef.current!
+      existing.gain.gain.cancelScheduledValues(ctx.currentTime)
+      existing.gain.gain.setValueAtTime(0, ctx.currentTime)
+      existing.oscillators.forEach((osc) => {
+        try {
+          osc.stop()
+        } catch (_) {}
+      })
+      existing.gain.disconnect()
+      voicesRef.current.delete(note)
     }
 
     // Get an initialize audio context
@@ -127,6 +141,10 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
       return // Invalid voice, return
     }
 
+    // Clear any pending cleanup from a previous stopNote call (e.g. mouseup
+    // followed immediately by mouseleave) so we don't double-schedule.
+    clearTimeout(voice.releaseTimeout)
+
     const audioContext = getAudioContext()
     const now = audioContext.currentTime
     const releaseTime = volEnvelopeRef.current.release
@@ -139,11 +157,13 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
 
     // Stop oscillators after release finishes.
     // releaseTime is in seconds, so convert to ms for setTimeout.
-    // Keep the note in the map until cleanup so a quick re-click during
-    // release doesn't start a second voice on top of the releasing one.
-    setTimeout(
+    voice.releaseTimeout = setTimeout(
       () => {
-        voice.oscillators.forEach((oscillator) => oscillator.stop())
+        voice.oscillators.forEach((oscillator) => {
+          try {
+            oscillator.stop()
+          } catch (_) {}
+        })
         voice.gain.disconnect()
         voicesRef.current.delete(note)
       },
