@@ -82,8 +82,8 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
 
   function playNote(note: number, oscillatorTypes: OscillatorType[]): void {
     if (voicesRef.current.has(note)) {
-      // A voice exists (possibly still in its release phase). Kill it immediately
-      // so the new click always starts a fresh note.
+      // A voice exists (prob still in its release phase). Kill it immediately
+      // so each new note hit starts a fresh note
       const existing = voicesRef.current.get(note)!
       clearTimeout(existing.releaseTimeout)
       const ctx = audioContextRef.current!
@@ -141,8 +141,8 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
       return // Invalid voice, return
     }
 
-    // Clear any pending cleanup from a previous stopNote call (e.g. mouseup
-    // followed immediately by mouseleave) so we don't double-schedule.
+    // Clear any pending cleanup from a previous stopNote call (mouseup
+    // followed immediately by mouseleave for example) so we don't double up calls.
     clearTimeout(voice.releaseTimeout)
 
     const audioContext = getAudioContext()
