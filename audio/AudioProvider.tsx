@@ -92,13 +92,15 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
       existing.oscillators.forEach((osc) => {
         try {
           osc.stop()
-        } catch (_) {}
+        } catch (err) {
+          console.error(err)
+        }
       })
       existing.gain.disconnect()
       voicesRef.current.delete(note)
     }
 
-    // Get an initialize audio context
+    // Get and initialize audio context
     const audioContext = getAudioContext()
     audioContext.resume()
 
@@ -106,7 +108,7 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     const { attack, decay, sustain } = volEnvelopeRef.current
     const now = audioContext.currentTime
     const noteFrequency = midiToFreqency(note)
-    // Normalize peak gain by oscillator count to prevent clipping
+    // Adjust gain by oscillator count to prevent clipping
     const peakGain = 1 / oscillatorTypes.length
     const sustainGain = sustain * peakGain
     const gain = audioContext.createGain()
@@ -156,7 +158,6 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     voice.gain.gain.linearRampToValueAtTime(0, now + releaseTime)
 
     // Stop oscillators after release finishes.
-    // releaseTime is in seconds, so convert to ms for setTimeout.
     voice.releaseTimeout = setTimeout(
       () => {
         voice.oscillators.forEach((oscillator) => {
