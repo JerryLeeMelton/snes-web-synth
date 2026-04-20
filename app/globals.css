@@ -36,6 +36,26 @@ body {
   border: 1px solid white;
 }
 
+.midi-controller-container {
+  display: flex;
+  margin: 1rem;
+  flex-direction: column;
+  padding: 1rem;
+  border: 1px solid white;
+  min-width: 12rem;
+}
+.midi-controller-heading {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+.midi-controller-container select {
+  border: 1px solid white;
+}
+.midi-controller-message {
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+
 .adsr-slider {
   -webkit-appearance: none;
   width: 100%;

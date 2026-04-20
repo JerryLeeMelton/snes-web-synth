@@ -4,7 +4,11 @@ import { createContext, useContext, useRef, ReactNode, useEffect } from "react"
 
 type AudioContextType = {
   // getAudioContext: () => AudioContext
-  playNote: (note: number, oscillatorTypes: OscillatorType[]) => void
+  playNote: (
+    note: number,
+    oscillatorTypes: OscillatorType[],
+    velocity?: number,
+  ) => void
   stopNote: (note: number) => void
   setVolEnvelope: (envelopeData: {
     attack: number
@@ -24,6 +28,7 @@ type AudioContextType = {
 export type Voice = {
   oscillators: OscillatorNode[]
   gain: GainNode
+  startedAt: number
   releaseTimeout?: ReturnType<typeof setTimeout>
 }
 
@@ -33,6 +38,8 @@ export type Envelope = {
   sustain: number
   release: number
 }
+
+export const MAX_POLYPHONY = 10
 
 const volEnvelopeRangeValues = {
   attack: { min: 0.001, max: 2.0, default: 0.02 },
@@ -80,36 +87,63 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     volEnvelopeRef.current = envelopeData
   }
 
-  function playNote(note: number, oscillatorTypes: OscillatorType[]): void {
+  function killVoiceImmediately(note: number) {
+    const existing = voicesRef.current.get(note)
+    if (!existing) return
+    clearTimeout(existing.releaseTimeout)
+    const ctx = audioContextRef.current!
+    existing.gain.gain.cancelScheduledValues(ctx.currentTime)
+    existing.gain.gain.setValueAtTime(0, ctx.currentTime)
+    existing.oscillators.forEach((osc) => {
+      try {
+        osc.stop()
+      } catch (err) {
+        console.error(err)
+      }
+    })
+    existing.gain.disconnect()
+    voicesRef.current.delete(note)
+  }
+
+  function playNote(
+    note: number,
+    oscillatorTypes: OscillatorType[],
+    velocity: number = 100,
+  ): void {
     if (voicesRef.current.has(note)) {
       // A voice exists (prob still in its release phase). Kill it immediately
       // so each new note hit starts a fresh note
-      const existing = voicesRef.current.get(note)!
-      clearTimeout(existing.releaseTimeout)
-      const ctx = audioContextRef.current!
-      existing.gain.gain.cancelScheduledValues(ctx.currentTime)
-      existing.gain.gain.setValueAtTime(0, ctx.currentTime)
-      existing.oscillators.forEach((osc) => {
-        try {
-          osc.stop()
-        } catch (err) {
-          console.error(err)
+      killVoiceImmediately(note)
+    }
+
+    // Enforce the 10-voice polyphony limit by stealing the oldest active voice
+    // before starting a new one.
+    while (voicesRef.current.size >= MAX_POLYPHONY) {
+      let oldestNote: number | null = null
+      let oldestStart = Infinity
+      for (const [n, v] of voicesRef.current) {
+        if (v.startedAt < oldestStart) {
+          oldestStart = v.startedAt
+          oldestNote = n
         }
-      })
-      existing.gain.disconnect()
-      voicesRef.current.delete(note)
+      }
+      if (oldestNote === null) break
+      killVoiceImmediately(oldestNote)
     }
 
     // Get and initialize audio context
     const audioContext = getAudioContext()
     audioContext.resume()
 
+    // Normalize MIDI velocity (0-127) to a 0-1 gain scalar
+    const velocityScale = Math.min(Math.max(velocity, 0), 127) / 127
+
     // Set the note's frequency and gain
     const { attack, decay, sustain } = volEnvelopeRef.current
     const now = audioContext.currentTime
     const noteFrequency = midiToFreqency(note)
-    // Adjust gain by oscillator count to prevent clipping
-    const peakGain = 1 / oscillatorTypes.length
+    // Adjust gain by oscillator count to prevent clipping, then scale by velocity
+    const peakGain = (1 / oscillatorTypes.length) * velocityScale
     const sustainGain = sustain * peakGain
     const gain = audioContext.createGain()
     gain.gain.setValueAtTime(0, now)
@@ -133,7 +167,11 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     })
 
     // Add note to the voiceRef for tracking and later stopping
-    voicesRef.current.set(note, { oscillators: oscillators, gain })
+    voicesRef.current.set(note, {
+      oscillators: oscillators,
+      gain,
+      startedAt: now,
+    })
   }
 
   function stopNote(note: number): void {
