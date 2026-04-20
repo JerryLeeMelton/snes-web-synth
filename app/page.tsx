@@ -4,22 +4,9 @@ import { useCallback, useRef, useState, useEffect } from "react"
 import { useAudio } from "@/audio/AudioProvider"
 import ADSRSliders from "@/components/controls/ADSRSliders"
 import MIDIController from "@/components/controls/MIDIController"
-
-const KEYBOARD_KEYS = [
-  { note: 60, label: "C" },
-  { note: 62, label: "D" },
-  { note: 64, label: "E" },
-  { note: 65, label: "F" },
-  { note: 67, label: "G" },
-  { note: 69, label: "A" },
-  { note: 71, label: "B" },
-  { note: 72, label: "C" },
-]
+import PianoKeyboard from "@/components/controls/PianoKeyboard"
 
 const OSCILLATOR_TYPES = ["sine", "square", "sawtooth", "triangle"]
-
-// Default velocity for the on-screen keyboard (mid-range MIDI velocity)
-const ON_SCREEN_VELOCITY = 100
 
 export default function Home() {
   const {
@@ -37,21 +24,22 @@ export default function Home() {
     "sine",
   ])
 
-  // Keep the latest oscillator types in a ref so MIDI callbacks stay stable
-  // while still using the current waveform selections.
+  // Keep the latest oscillator types in a ref so external input sources
+  // (MIDI, on-screen keyboard, computer keyboard) always use the current
+  // waveform selections without re-attaching listeners.
   const oscillatorTypesRef = useRef(oscillatorTypes)
   useEffect(() => {
     oscillatorTypesRef.current = oscillatorTypes
   }, [oscillatorTypes])
 
-  const handleMidiNoteOn = useCallback(
+  const handleNoteOn = useCallback(
     (note: number, velocity: number) => {
       playNote(note, oscillatorTypesRef.current, velocity)
     },
     [playNote],
   )
 
-  const handleMidiNoteOff = useCallback(
+  const handleNoteOff = useCallback(
     (note: number) => {
       stopNote(note)
     },
@@ -60,25 +48,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <div className="keyboard-container">
-        {KEYBOARD_KEYS.map(({ note, label }) => (
-          <button
-            key={note}
-            onMouseDown={() => {
-              playNote(note, oscillatorTypes, ON_SCREEN_VELOCITY)
-            }}
-            onMouseUp={() => {
-              stopNote(note)
-            }}
-            onMouseLeave={() => {
-              stopNote(note)
-            }}
-            className={"keyboard-key"}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <PianoKeyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
       <div className={"synth-controls"}>
         <div className="volume-envelope-container">
           <ADSRSliders
@@ -107,8 +77,8 @@ export default function Home() {
           </div>
         ))}
         <MIDIController
-          onNoteOn={handleMidiNoteOn}
-          onNoteOff={handleMidiNoteOff}
+          onNoteOn={handleNoteOn}
+          onNoteOff={handleNoteOff}
         />
       </div>
     </div>

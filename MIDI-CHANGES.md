@@ -1,7 +1,8 @@
-# MIDI Controller Support & Polyphony
+# MIDI Controller Support, Polyphony, & Improved Keyboard
 
 This document summarizes the changes that added MIDI controller support,
-velocity-sensitive note playback, and a 10-voice polyphony cap to the synth.
+velocity-sensitive note playback, a 10-voice polyphony cap, a piano-style
+on-screen keyboard with octave controls, and computer-keyboard input.
 
 ## What's new
 
@@ -44,6 +45,48 @@ velocity-sensitive note playback, and a 10-voice polyphony cap to the synth.
 - Each active voice now tracks when it started so the oldest one can be
   identified quickly.
 
+### 4. Piano-style on-screen keyboard
+
+- The old row of purple buttons was replaced with a proper piano keyboard:
+  a row of white keys with black keys (sharps/flats) overlaid in the correct
+  positions between the right white keys.
+- Each white key is labelled with its note name (C, D, E, F, G, A, B, C) and
+  each key shows a small hint for its matching computer-keyboard shortcut.
+- Pressing a key (mouse or computer keyboard) lights it up so you can see
+  what's playing.
+
+### 5. Octave up / down controls
+
+- A pair of **Octave −** / **Octave +** buttons sits above the keyboard with
+  a readout of the current octave (default: 4, so the leftmost C is C4 /
+  MIDI 60).
+- Pressing either button shifts the on-screen keyboard one octave down or up.
+  The range is clamped to octaves 0–8 so you can't wander off the end of the
+  MIDI spectrum; the buttons disable themselves at the limits.
+- **Octave controls only affect the on-screen keyboard and the computer
+  keyboard mapping. A connected MIDI controller is unaffected** — its notes
+  come through at their true pitches regardless of the on-screen octave.
+
+### 6. Computer-keyboard input
+
+- You can now play the synth from the computer keyboard without a MIDI
+  device plugged in.
+- **White keys:** `A S D F G H J K` → `C D E F G A B C`
+- **Black keys (sharps / flats):** `W E T Y U` → `C♯/D♭, D♯/E♭, F♯/G♭,
+  G♯/A♭, A♯/B♭`
+- Holding a key plays the note for as long as it's held, and releasing the
+  key triggers the normal release phase of the envelope.
+- Key auto-repeat (holding a key long enough to trigger the OS' repeat
+  behaviour) is ignored, so notes don't re-trigger while you hold them.
+- Shortcuts are ignored while you're typing in a text field, select, or
+  other editable element, so the oscillator waveform selectors and other
+  controls still work normally.
+- If you switch tabs or focus away while holding notes, those notes are
+  automatically released (no stuck notes).
+- If you change octave while holding a computer-keyboard key, the original
+  note keeps playing until you release that key (which releases the correct
+  note), and any new keypress plays in the new octave.
+
 ## Files changed
 
 - `audio/AudioProvider.tsx` — added an optional `velocity` argument to
@@ -54,12 +97,18 @@ velocity-sensitive note playback, and a 10-voice polyphony cap to the synth.
   device discovery, hot-plug events, and message parsing (Note On / Note Off
   with velocity). Exposes a `<MIDIController onNoteOn onNoteOff />` component
   that renders the dropdown UI.
-- `app/page.tsx` — renders the `MIDIController` inside the existing synth
-  controls and forwards MIDI events into the existing `playNote` / `stopNote`
-  functions. Oscillator-type selections are read through a ref so MIDI input
-  always uses the latest waveform picks without re-attaching listeners.
-- `app/globals.css` — added styling for the new MIDI controller section so it
-  matches the other control panels.
+- `components/controls/PianoKeyboard.tsx` — **new**. Renders the piano-style
+  keyboard with sharps/flats, octave up/down controls, and listens to the
+  computer keyboard for `A–K` / `W E T Y U` input. Emits the same
+  `onNoteOn(note, velocity)` / `onNoteOff(note)` callbacks used by the MIDI
+  controller so the page wires them up identically.
+- `app/page.tsx` — replaced the old button-row keyboard with `PianoKeyboard`,
+  and forwards both the on-screen/computer and MIDI events into a shared
+  `handleNoteOn` / `handleNoteOff` pair that reads the current oscillator
+  selections through a ref.
+- `app/globals.css` — removed the old `.keyboard-key` styles and added
+  styles for the piano keyboard (white and black keys, pressed state,
+  octave controls) and the MIDI controller panel.
 
 ## Browser support note
 
