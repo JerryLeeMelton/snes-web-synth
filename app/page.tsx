@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { useAudio } from "@/audio/AudioProvider"
+import { useState } from "react"
+import { useAudio, type SynthMode } from "@/audio/AudioProvider"
 import ADSRSliders from "@/components/controls/ADSRSliders"
 
 const KEYBOARD_KEYS = [
@@ -17,13 +17,19 @@ const KEYBOARD_KEYS = [
 
 const OSCILLATOR_TYPES = ["sine", "square", "sawtooth", "triangle"]
 
+const MODE_OPTIONS: { value: SynthMode; label: string }[] = [
+  { value: "snes", label: "SNES Mode" },
+  { value: "standard", label: "Standard Mode" },
+]
+
 export default function Home() {
   const {
     playNote,
     stopNote,
     setVolEnvelope,
     volEnvelopeRangeValues,
-    volEnvelopeRef,
+    mode,
+    setMode,
   } = useAudio()
 
   const [oscillatorTypes, setOscillatorTypes] = useState<OscillatorType[]>([
@@ -35,6 +41,20 @@ export default function Home() {
 
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+      <div className="mode-select-container">
+        <label htmlFor="mode-select">Mode Select</label>
+        <select
+          id="mode-select"
+          value={mode}
+          onChange={(e) => setMode(e.target.value as SynthMode)}
+        >
+          {MODE_OPTIONS.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="keyboard-container">
         {KEYBOARD_KEYS.map(({ note, label }) => (
           <button

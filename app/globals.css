@@ -25,6 +25,20 @@ body {
   border-radius: 1rem;
 }
 
+.mode-select-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 1rem;
+}
+
+.mode-select-container select {
+  border: 1px solid currentColor;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
 .oscillator-controls-container {
   display: flex;
   margin: 1rem;
