@@ -13,7 +13,11 @@ import {
 export type SynthMode = "snes" | "standard"
 
 type AudioContextType = {
-  playNote: (note: number, oscillatorTypes: OscillatorType[]) => void
+  playNote: (
+    note: number,
+    oscillatorTypes: OscillatorType[],
+    velocity?: number,
+  ) => void
   stopNote: (note: number) => void
   setVolEnvelope: (envelopeData: Envelope) => void
   volEnvelopeRangeValues: {
@@ -30,6 +34,7 @@ type AudioContextType = {
 export type Voice = {
   oscillators: OscillatorNode[]
   gain: GainNode
+  startedAt: number
   releaseTimeout?: ReturnType<typeof setTimeout>
 }
 
@@ -40,6 +45,8 @@ export type Envelope = {
   release: number
 }
 
+export const MAX_POLYPHONY = 10
+
 const volEnvelopeRangeValues = {
   attack: { min: 0.001, max: 2.0, default: 0.02 },
   decay: { min: 0.001, max: 2.0, default: 0.1 },
@@ -47,7 +54,11 @@ const volEnvelopeRangeValues = {
   release: { min: 0.001, max: 3.0, default: 0.05 },
 }
 
-const SNES_WORKLET_URL = "/worklets/snes-dsp.js"
+// AudioWorklet.addModule() doesn't go through Next's basePath rewriter, so we
+// prefix the asset URL ourselves. The env var is injected at build time from
+// next.config.ts; fall back to no prefix for tests / local runs without it.
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? ""
+const SNES_WORKLET_URL = `${BASE_PATH}/worklets/snes-dsp.js`
 
 const AudioCtx = createContext<AudioContextType | null>(null)
 
@@ -111,8 +122,6 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     const loading = ctx.audioWorklet
       .addModule(SNES_WORKLET_URL)
       .then(() => {
-        // Guard in case context was torn down or another mode switch happened
-        // while the module was still loading.
         if (!audioContextRef.current) return
         const node = new AudioWorkletNode(ctx, "snes-dsp", {
           numberOfInputs: 1,
@@ -126,6 +135,9 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
       })
       .catch((err) => {
         console.error("Failed to load SNES DSP worklet", err)
+        // Allow a subsequent mode switch to retry the load rather than being
+        // stuck on a cached rejected promise.
+        snesWorkletLoadingRef.current = null
       })
 
     snesWorkletLoadingRef.current = loading
@@ -164,7 +176,7 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     setModeState(next)
 
     const ctx = audioContextRef.current
-    if (!ctx) return // graph not built yet; next playNote will construct with the new mode
+    if (!ctx) return
 
     if (next === "snes") {
       loadSnesWorklet(ctx).then(() => applyRouting())
@@ -177,33 +189,60 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
     volEnvelopeRef.current = envelopeData
   }
 
-  function playNote(note: number, oscillatorTypes: OscillatorType[]): void {
+  function killVoiceImmediately(note: number) {
+    const existing = voicesRef.current.get(note)
+    if (!existing) return
+    clearTimeout(existing.releaseTimeout)
+    const ctx = audioContextRef.current!
+    existing.gain.gain.cancelScheduledValues(ctx.currentTime)
+    existing.gain.gain.setValueAtTime(0, ctx.currentTime)
+    for (const osc of existing.oscillators) {
+      try {
+        osc.stop()
+      } catch {
+        // Oscillator may already be stopped; safe to ignore.
+      }
+    }
+    existing.gain.disconnect()
+    voicesRef.current.delete(note)
+  }
+
+  function playNote(
+    note: number,
+    oscillatorTypes: OscillatorType[],
+    velocity: number = 100,
+  ): void {
     // Kill any existing voice on this note so a retrigger starts clean instead
     // of stacking a new envelope on top of an in-progress release.
-    const existing = voicesRef.current.get(note)
-    if (existing) {
-      clearTimeout(existing.releaseTimeout)
-      const ctx = audioContextRef.current!
-      existing.gain.gain.cancelScheduledValues(ctx.currentTime)
-      existing.gain.gain.setValueAtTime(0, ctx.currentTime)
-      for (const osc of existing.oscillators) {
-        try {
-          osc.stop()
-        } catch {
-          // Oscillator may already be stopped; safe to ignore.
+    if (voicesRef.current.has(note)) {
+      killVoiceImmediately(note)
+    }
+
+    // Enforce polyphony limit by stealing the oldest active voice.
+    while (voicesRef.current.size >= MAX_POLYPHONY) {
+      let oldestNote: number | null = null
+      let oldestStart = Infinity
+      for (const [n, v] of voicesRef.current) {
+        if (v.startedAt < oldestStart) {
+          oldestStart = v.startedAt
+          oldestNote = n
         }
       }
-      existing.gain.disconnect()
-      voicesRef.current.delete(note)
+      if (oldestNote === null) break
+      killVoiceImmediately(oldestNote)
     }
 
     const audioContext = ensureAudioContext()
     audioContext.resume()
 
+    // Normalize MIDI velocity (0-127) to a 0-1 gain scalar.
+    const velocityScale = Math.min(Math.max(velocity, 0), 127) / 127
+
     const { attack, decay, sustain } = volEnvelopeRef.current
     const now = audioContext.currentTime
     const noteFrequency = midiToFrequency(note)
-    const peakGain = 1 / oscillatorTypes.length
+    // Adjust gain by oscillator count to prevent clipping, then scale by velocity.
+    const peakGain = (1 / oscillatorTypes.length) * velocityScale
     const sustainGain = sustain * peakGain
 
     const gain = audioContext.createGain()
@@ -222,7 +261,7 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
 
     for (const osc of oscillators) osc.start()
 
-    voicesRef.current.set(note, { oscillators, gain })
+    voicesRef.current.set(note, { oscillators, gain, startedAt: now })
   }
 
   function stopNote(note: number): void {
@@ -257,9 +296,8 @@ export default function AudioProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Snapshot refs at effect setup so the cleanup operates on the exact
-    // objects that were live when the provider mounted (guards against the
-    // refs being reassigned before unmount).
+    // Snapshot the voices map at effect setup so cleanup operates on the exact
+    // object that was live at mount time.
     const voices = voicesRef.current
     return () => {
       const ctx = audioContextRef.current

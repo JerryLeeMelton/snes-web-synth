@@ -1,19 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useAudio, type SynthMode } from "@/audio/AudioProvider"
 import ADSRSliders from "@/components/controls/ADSRSliders"
-
-const KEYBOARD_KEYS = [
-  { note: 60, label: "C" },
-  { note: 62, label: "D" },
-  { note: 64, label: "E" },
-  { note: 65, label: "F" },
-  { note: 67, label: "G" },
-  { note: 69, label: "A" },
-  { note: 71, label: "B" },
-  { note: 72, label: "C" },
-]
+import MIDIController from "@/components/controls/MIDIController"
+import PianoKeyboard from "@/components/controls/PianoKeyboard"
 
 const OSCILLATOR_TYPES = ["sine", "square", "sawtooth", "triangle"]
 
@@ -39,6 +30,28 @@ export default function Home() {
     "sine",
   ])
 
+  // Keep the latest oscillator types in a ref so external input sources
+  // (MIDI, on-screen keyboard, computer keyboard) always use the current
+  // waveform selections without re-attaching listeners.
+  const oscillatorTypesRef = useRef(oscillatorTypes)
+  useEffect(() => {
+    oscillatorTypesRef.current = oscillatorTypes
+  }, [oscillatorTypes])
+
+  const handleNoteOn = useCallback(
+    (note: number, velocity: number) => {
+      playNote(note, oscillatorTypesRef.current, velocity)
+    },
+    [playNote],
+  )
+
+  const handleNoteOff = useCallback(
+    (note: number) => {
+      stopNote(note)
+    },
+    [stopNote],
+  )
+
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <div className="mode-select-container">
@@ -55,25 +68,7 @@ export default function Home() {
           ))}
         </select>
       </div>
-      <div className="keyboard-container">
-        {KEYBOARD_KEYS.map(({ note, label }) => (
-          <button
-            key={note}
-            onMouseDown={() => {
-              playNote(note, oscillatorTypes)
-            }}
-            onMouseUp={() => {
-              stopNote(note)
-            }}
-            onMouseLeave={() => {
-              stopNote(note)
-            }}
-            className={"keyboard-key"}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <PianoKeyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
       <div className={"synth-controls"}>
         <div className="volume-envelope-container">
           <ADSRSliders
@@ -101,6 +96,7 @@ export default function Home() {
             </div>
           </div>
         ))}
+        <MIDIController onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
       </div>
     </div>
   )
